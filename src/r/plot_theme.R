@@ -1,4 +1,4 @@
-# Shared ggplot theme (requires ggplot2 to be loaded when called)
+# Shared ggplot theme
 plot_theme = function() {
   theme_minimal(base_size = 12) +
     theme(
