@@ -321,5 +321,16 @@ These findings should be interpreted in light of the simulation assumptions:
 - The app may use settings different from the fixed scenarios in this report. Compare the settings before treating app results as directly equivalent to the report results.
 
 ## References
+Meyen, S., Zerweck, I. A., Amado, C., von Luxburg, U., & Franz, V. H. (2022). 
+Advancing research on unconscious priming: When can scientists claim an indirect 
+task advantage? Journal of Experimental Psychology: General, 151(1), 65–81. 
+https://doi.org/10.1037/xge0001065 
 
-Meyen et al. (2022) is cited in the project's analysis notes as the methodological reference. Before submission, add the complete bibliographic reference (full author list, article title, journal, and DOI) after checking the original publication.
+Shanks, D. R. (2016). Regressive research: The pitfalls of post hoc data selection
+in the study of Unconscious Mental Processes. Psychonomic Bulletin &amp; Review, 
+24(3), 752–775. https://doi.org/10.3758/s13423-016-1170-y 
+
+Stein, T., van Gaal, S., & Fahrenfort, J. (2023). How (Not) to Demonstrate Unconscious
+Priming:Overcoming Issues with Post-Hoc Data Selection, Low Power, and Frequentist
+Statistics. https://doi.org/10.2139/ssrn.4573995 
+
