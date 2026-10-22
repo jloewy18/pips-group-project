@@ -1,14 +1,34 @@
-# pips-group-project
-This repository contains an R-based simulation project developed for the Programming
-in Psychological Science course of the Research Master Psychology at the University of Amsterdam.
+# Unconscious Priming: Comparing Two Statistical Methods
+## Background
 
-The project investigates how two statistical approaches perform when comparing 
-sensitivity in awareness and processing tasks: the double t-test approach and
-the direct comparison of sensitivities. By simulating repeated experiments 
-under different conditions, we examine how often each approach identifies a processing 
-advantage, including false-positive rates and statistical power.
+Unconscious priming occurs when a stimulus influences responses without conscious
+awareness of it. In masked-priming experiments, briefly presented primes precede
+targets. Prime and target categories either match (congruent) or differ (incongruent).
 
-The repository also includes an interactive Shiny app that allows users to explore how experimental parameters affect the results of the two approaches.
+The double t-test approach uses two separate tests:
+
+- **Processing:** Are reaction times significantly faster on congruent than incongruent trials?
+- **Awareness:** Does prime-identification accuracy differ significantly from chance?
+
+Significant processing combined with nonsignificant awareness has been interpreted
+as evidence of unconscious priming (e.g., [Dehaene et al., 1998](https://www.nature.com/articles/26967)). 
+However, nonsignificant awareness does not establish an absence of awareness, as 
+it may reflect low statistical power. This processing-advantage pattern can therefore
+occur even when awareness and processing sensitivities are equal.
+
+Inspired by [Meyen et al. (2021)](https://doi.org/10.1037/xge0001065), this project
+compares the classic double t-test approach with a direct comparison of sensitivities:
+
+- **Awareness sensitivity (\(d'\)):** Estimated from prime-identification responses.
+- **Processing sensitivity (\(d'\)):** Estimated by dividing each participant’s 
+reaction times into faster and slower responses at their median and measuring how
+well these distinguish congruent from incongruent trials.
+- **Direct comparison:** A one-sided paired t-test tests whether processing \(d'\) 
+exceeds awareness \(d'\).
+
+## Citation
+Liu, S., Paschold, K., & Loewy, J. (2026). *pips-group-project* [Computer software]. 
+GitHub. https://github.com/jloewy18/pips-group-project
 
 ## Getting started
 
@@ -38,24 +58,25 @@ instructions in the report to run simulations, inspect the analyses, and interpr
 
 ```text
 pips-group-project/
-├── data/                         # Saved simulation results and raw data
 ├── src/
 │   └── r/
-│       ├── dependencies.R        # Checks and loads required packages
-│       ├── config.R              # Shared settings and constants
-│       ├── plot_theme.R          # Shared ggplot theme
-│       ├── io.R                  # Saves and loads simulation results
-│       ├── simulate.R            # Simulates participant responses
-│       ├── participant_analysis.R# Implements the analysis approaches
-│       ├── run_simulation.R      # Runs one simulated experiment
-│       ├── classify.R            # Classifies analysis outcomes
-│       ├── batch.R               # Repeats simulations and collects results
-│       ├── analysis.R             # Additional statistical analyses and plots
-│       ├── shiny_app.R            # Interactive Shiny app
-│       └── load_all.R             # Loads project scripts in order
-├── main.Rmd                      # Main report and analysis workflow
-├── README.md 
-└── pips-group-project.Rproj       # RStudio project file
+│       ├── analysis.R              # Additional statistical analyses and plots
+│       ├── batch.R                 # Repeats simulations and collects results
+│       ├── classify.R              # Classifies analysis outcomes
+│       ├── config.R                # Shared settings and constants
+│       ├── dependencies.R          # Checks and loads required packages
+│       ├── io.R                    # Saves and loads simulation results
+│       ├── load_all.R              # Loads project scripts in order
+│       ├── participant_analysis.R  # Implements the analysis approaches
+│       ├── plot_theme.R             # Shared ggplot theme
+│       ├── run_analysis.R           # Runs the analysis workflow
+│       ├── run_simulation.R         # Runs one simulated experiment
+│       ├── shiny_app.R              # Interactive Shiny app
+│       └── simulate.R               # Simulates participant responses
+├── .gitignore                       # Specifies files Git should ignore
+├── README.md                        # Project overview and instructions
+├── main.Rmd                         # Main report and analysis workflow
+└── pips-group-project.Rproj         # RStudio project file
 ```
 
 ## How the project works
@@ -135,8 +156,9 @@ Save the results of a batch:
 save_batch(results, name = "example_batch")
 ```
 
-This saves the batch result as an RDS file and the successful experiment-level
-results as a CSV file in the `data/` directory.
+This saves the complete batch result as an RDS file and the successful experiment-level
+results as a CSV file in the `data/` directory. If the directory does not exist, 
+it is created automatically when saving.
 
 To load the saved batch:
 
@@ -144,35 +166,22 @@ To load the saved batch:
 saved_results <- load_batch("example_batch")
 ```
 
-Raw data from an individual experiment can also be saved using `save_experiment()`
-and retrieved using `load_experiment()`.
+Raw data from an individual experiment can also be saved using `save_experiment()` 
+and retrieved using `load_experiment()`. These files are stored in `data/raw/`,
+which is also created automatically when saving if it does not already exist.
 
-## Main research question
-
-The project examines whether the double t-test and direct comparison of sensitivities
-lead to different conclusions about processing advantages.
-
-The double t-test evaluates evidence from separate tests, whereas direct comparison
-evaluates the difference between the estimated sensitivities themselves. Comparing 
-these approaches across simulated conditions helps us investigate the risk of false-positive
-conclusions and the influence of experimental design on statistical power.
-
-The report presents the scenarios, figures, statistical tests, and interpretations 
-used to address this research question.
-
+## Dependencies
+The R project uses ggplot2 for data visualization and Shiny for the interactive app.
+knitr and rmarkdown support the main document. The src/r/dependencies. The R scripts
+install these packages when they are missing.
 
 ## References
+Dehaene, S., Naccache, L., Le Clec’H, G., Koechlin, E., Mueller, M., Dehaene-Lambertz, 
+G., van de Moortele, P.-F., & Le Bihan, D. (1998). Imaging unconscious semantic 
+priming. Nature, 395(6702), 597–600. https://doi.org/10.1038/26967 
+
 Meyen, S., Zerweck, I. A., Amado, C., von Luxburg, U., & Franz, V. H. (2022). 
 Advancing research on unconscious priming: When can scientists claim an indirect 
 task advantage? Journal of Experimental Psychology: General, 151(1), 65–81. 
 https://doi.org/10.1037/xge0001065 
-
-Shanks, D. R. (2016). Regressive research: The pitfalls of post hoc data selection
-in the study of Unconscious Mental Processes. Psychonomic Bulletin &amp; Review, 
-24(3), 752–775. https://doi.org/10.3758/s13423-016-1170-y 
-
-Stein, T., van Gaal, S., & Fahrenfort, J. (2023). How (Not) to Demonstrate Unconscious
-Priming:Overcoming Issues with Post-Hoc Data Selection, Low Power, and Frequentist
-Statistics. https://doi.org/10.2139/ssrn.4573995 
-
 
