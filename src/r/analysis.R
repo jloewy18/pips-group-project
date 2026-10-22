@@ -1,57 +1,36 @@
-# ------------------- PLOT AND ANALYSIS FUNCTIONS (plots.R) ------------------- #
-# Compares two ways of testing for unconscious processing (Meyen et al., 2022):
-# - the double t-test: processing significant (and positive) AND awareness not significant
-# - the direct comparison: processing sensitivity significantly higher than awareness sensitivity
+# ------------------- ANALYSIS AND PLOT FUNCTIONS ------------------- #
+
+# Question: does the "double t-test" give false evidence for unconscious processing?
+
+# Two ways to claim that a prime was processed without being consciously seen:
+# - Double t-test: processing test significant AND awareness test not significant.
+#   Common in the literature, but "not significant" does not mean "no awareness".
+# - Direct comparison: processing sensitivity significantly higher than awareness
+#   sensitivity. This tests the claim itself (Meyen et al., 2022).
+
+# We simulate many experiments with a known truth and count how often each method is right.
 #
-# Uses run_simulation() and classify_experiment() from the simulation code, so the
-# analysis uses exactly the same tests and rules as the app, and ALPHA, Q2 and
-# COLS from config.R.
-# Load it AFTER load_all.R (run_plots.R does this), so these functions are the
-# ones that are used. ggplot2 must be loaded.
-#
-# "settings" is a list with the arguments of run_simulation():
-# K_aware, K_process, delta_aware, delta_process, N and q2.
+# Simulations are run with run_batch() (batch.R), the same pipeline as the app,
+# so the analysis uses exactly the same tests and rules. Constants come from
+# config.R and the base plot style from plot_theme.R.
+# "settings" is a batch_settings() list; B = number of simulated experiments.
 
 
-# ---- 1. Simulating -----------------------------------------------------------
+# ---- 1. Rates and tests ------------------------------------------------------
 
-# repeats one simulated experiment many times with the same settings.
-# each experiment is simulated with run_simulation() and classified with
-# classify_experiment() (same rules as the app). the three p-values are added,
-# because the scatter plot needs them.
-# input: settings (arguments of run_simulation()), n_reps (number of simulated
-# experiments), seed (fixes the random numbers) and alpha (significance level)
-# output: a data frame with one row per experiment: whether each test is
-# significant, whether each method claims unconscious processing, and the p-values
-run_many_experiments <- function(settings, n_reps = 1000, seed = 2027, alpha = ALPHA) {
-  if (n_reps < 10) stop("n_reps should be at least 10 to estimate rates.")
-  set.seed(seed)
-  do.call(rbind, lapply(seq_len(n_reps), function(i) {
-    experiment <- do.call(run_simulation, settings)
-    row <- classify_experiment(experiment, experiment = i, alpha = alpha)
-    row$p_awareness  <- experiment$results_aware$accuracy$ttest$p.value
-    row$p_processing <- experiment$results_process$processingMeasure$mean_diff$ttest$p.value
-    row$p_comparison <- experiment$results_comparison$sensitivity$ttest$p.value
-    row
-  }))
-}
-
-
-# ---- 2. Rates and tests ------------------------------------------------------
-
-# calculates how often each method claims unconscious processing.
-# this is the false positive rate when both tasks are equally sensitive,
-# and the detection rate when processing is truly more sensitive.
-# input: results of run_many_experiments()
-# output: one row per method: proportion of experiments with a claim and its 95% CI
+# Share of experiments in which each method claims unconscious processing.
+      # If the tasks are equally sensitive, every claim is wrong (false positive rate);
+      # if processing is truly more sensitive, every claim is right (detection rate).
+      # The 95% CI shows how precise the estimate is with this number of simulations.
+      # Input: the data of a run_batch() result (one row per experiment).
 claim_rates <- function(study_results) {
   methods <- c(double_processing_advantage = "Double t-test",
                comparison_processing_advantage = "Direct comparison")
   
   rows <- lapply(names(methods), function(column) {
-    n_claims <- sum(study_results[[column]])          # how many TRUEs
-    n_total  <- nrow(study_results)                   # how many experiments
-    ci <- binom.test(n_claims, n_total)$conf.int      # 95% CI for a proportion
+    n_claims <- sum(study_results[[column]])
+    n_total  <- nrow(study_results)
+    ci <- binom.test(n_claims, n_total)$conf.int      # exact CI for a proportion
     data.frame(method = methods[[column]],
                rate = n_claims / n_total,
                ci_low = ci[1],
@@ -60,10 +39,10 @@ claim_rates <- function(study_results) {
   do.call(rbind, rows)
 }
 
-# power of each separate test: how often it is significant, with a 95% CI
-# (uses aware_sig and process_sig from classify_experiment())
-# input: results of run_many_experiments()
-# output: one row per test: test, power, ci_low, ci_high
+# Power of each separate test (share of experiments where it is significant).
+      # Input: the data of a run_batch() result.
+      # Explains the double t-test: if awareness has less power than processing,
+      # "processing yes, awareness no" happens even when both are equally sensitive.
 test_power <- function(study_results) {
   tests <- c(aware_sig = "Awareness test", process_sig = "Processing test")
   rows <- lapply(names(tests), function(column) {
@@ -75,53 +54,46 @@ test_power <- function(study_results) {
   do.call(rbind, rows)
 }
 
-# power of each test for different numbers of trials.
-# both tasks get the same number of trials (and the same sensitivity, from settings),
-# so any difference in power comes from the tests themselves.
-# input: settings, K_values (trials per task to try), n_reps and seed
-# output: test_power() rows for every K, plus the participants and sensitivity used
-power_by_trials <- function(settings, K_values = c(50, 100, 200, 400, 800),
-                            n_reps = 200, seed = 2027) {
+# Power of both tests across numbers of trials.
+      # Both tasks get the same trials and sensitivity, so the only thing that varies
+      # is the amount of data: this shows how much power depends on trial count.
+      # (K_values must be 50-500: run_batch() only accepts that many trials per task.)
+power_by_trials <- function(settings, K_values = c(50, 100, 200, 400), n_reps = 200) {
   rows <- lapply(K_values, function(K) {
-    par <- modifyList(settings, list(K_aware = K, K_process = K))
-    cbind(trials = K, test_power(run_many_experiments(par, n_reps = n_reps, seed = seed)))
+    par <- modifyList(settings, list(K_aware = K, K_process = K, B = n_reps))
+    cbind(trials = K, test_power(run_batch(par)$data))
   })
   out <- do.call(rbind, rows)
-  out$participants <- settings$N            # kept for the plot subtitle
+  out$participants <- settings$N            # stored for the plot subtitle
   out$sensitivity  <- settings$delta_aware
   out
 }
 
-# power of each test for different numbers of participants.
-# the number of trials stays as in settings (usually fewer for awareness).
-# input: settings, N_values (participants to try), n_reps and seed
-# output: test_power() rows for every N, plus the trials and sensitivity used
-power_by_participants <- function(settings, N_values = c(5, 10, 20, 40),
-                                  n_reps = 200, seed = 2027) {
+# Power of both tests across numbers of participants.
+      # Both tasks get the same number of trials, so the only thing that varies is the
+      # number of participants: this shows the effect of sample size on its own.
+power_by_participants <- function(settings, N_values = c(5, 10, 20, 40), trials = 100,
+                                  n_reps = 200) {
   rows <- lapply(N_values, function(n) {
-    par <- modifyList(settings, list(N = n))
-    cbind(participants = n, test_power(run_many_experiments(par, n_reps = n_reps, seed = seed)))
+    par <- modifyList(settings, list(N = n, K_aware = trials, K_process = trials, B = n_reps))
+    cbind(participants = n, test_power(run_batch(par)$data))
   })
   out <- do.call(rbind, rows)
-  out$trials_aware   <- settings$K_aware    # kept for the plot subtitle
-  out$trials_process <- settings$K_process
-  out$sensitivity    <- settings$delta_aware
+  out$trials      <- trials                 # stored for the plot subtitle
+  out$sensitivity <- settings$delta_aware
   out
 }
 
-# test 1: does the direct comparison make more false claims than alpha allows?
-# exact binomial test (one-sided: a valid test should not go above alpha).
-# input: results of run_many_experiments() for a scenario with no true difference
-# output: the test result (non-significant = the method is valid)
+# Test 1: is the direct comparison valid?
+      # A valid method should not make more false claims than alpha (5%).
+      # One-sided, because only too many false claims would be a problem.
 test_type1_error <- function(study_results, alpha = ALPHA) {
   binom.test(sum(study_results$comparison_processing_advantage),
              nrow(study_results), p = alpha, alternative = "greater")
 }
 
-# test 2: do the two methods differ in how often they claim unconscious processing?
-# McNemar's test, because both methods are applied to the same experiments (paired).
-# input: results of run_many_experiments()
-# output: the test result
+# Test 2: does the double t-test make more false claims than the direct comparison?
+      # McNemar's test, because both methods judge the same experiments (paired data).
 compare_methods <- function(study_results) {
   claims <- table(
     double_ttest = factor(study_results$double_processing_advantage, levels = c(FALSE, TRUE)),
@@ -130,10 +102,8 @@ compare_methods <- function(study_results) {
   mcnemar.test(claims)
 }
 
-# test 3: does the direct comparison detect more often in one design than in another?
-# two-sample test of proportions, because the designs were simulated separately.
-# input: results of run_many_experiments() for two designs
-# output: the test result
+# Test 3: does one study design detect real effects more often than another?
+      # Test of two proportions, because the designs are separate sets of experiments.
 compare_designs <- function(results_a, results_b) {
   prop.test(x = c(sum(results_a$comparison_processing_advantage),
                   sum(results_b$comparison_processing_advantage)),
@@ -141,17 +111,16 @@ compare_designs <- function(results_a, results_b) {
 }
 
 
-# ---- 3. Plots ----------------------------------------------------------------
+# ---- 2. Plots ----------------------------------------------------------------
 
-# colours used in every plot: one per method, and the app's colours per task
+# Fixed colours, so each method/task looks the same in every figure.
+# Task colours come from config.R, so they match the app.
 method_colours <- c("Double t-test" = "#c0392b", "Direct comparison" = "#2471a3")
 test_colours <- c("Awareness test" = COLS[["Awareness"]],
                   "Processing test" = COLS[["Processing"]])
 
-# figure 1: bar plot of how often each method wrongly claims unconscious processing
-# input: claim_rates() output for a scenario without a true difference, settings
-# (shown in the subtitle) and alpha (acceptable false positive rate, dashed line)
-# output: a ggplot object
+# Figure 1: how often each method wrongly claims unconscious processing.
+      # The dashed line marks alpha, the error rate a valid method should stay under.
 plot_false_positives <- function(rates, settings, alpha = ALPHA) {
   ggplot(rates, aes(method, rate, fill = method)) +
     geom_col(width = 0.6) +
@@ -173,23 +142,19 @@ plot_false_positives <- function(rates, settings, alpha = ALPHA) {
                            settings$N, " participants; ",
                            settings$K_aware, " awareness / ", settings$K_process,
                            " processing trials.")) +
-    theme_minimal(base_size = 13) +
+    plot_theme() +
     theme(panel.grid.major.x = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.text.x = element_text(size = 13, colour = "grey15"),
-          plot.title = element_text(face = "bold"))
+          axis.text.x = element_text(size = 12, colour = "grey15"))
 }
 
-# figure 2: scatter plot showing why the double t-test fails (cf. Meyen et al., 2022, Figure S3).
-# each point is one simulated experiment: awareness p value (x) vs processing p value (y).
-# the shaded area marks the misleading pattern: processing significant, awareness not.
-# input: results of run_many_experiments() and alpha (significance level)
-# output: a ggplot object
+# Figure 2: why the double t-test fails (cf. Meyen et al., 2022, Figure S3).
+      # Each point is one experiment. Points below the diagonal: processing gave the
+      # smaller p value despite equal sensitivity. Shaded area: the misleading pattern.
 plot_p_value_scatter <- function(study_results, alpha = ALPHA) {
   share <- mean(study_results$double_processing_advantage)
   min_p <- min(c(study_results$p_awareness, study_results$p_processing))
   
-  # axis ticks as normal p values, plus alpha where the dashed lines are
+  # readable p values on the axes, with alpha marked where the dashed lines are
   p_breaks <- c(0.000001, 0.0001, 0.01, alpha, 1)
   p_labels <- c("0.000001", "0.0001", "0.01", paste0("α = ", alpha), "1")
   
@@ -209,25 +174,21 @@ plot_p_value_scatter <- function(study_results, alpha = ALPHA) {
          y = "p value of the processing test (log scale)",
          title = "Same sensitivity, very different p values",
          subtitle = "Each point is one simulated experiment. Grey line: equal p values.") +
-    theme_minimal(base_size = 13) +
-    theme(panel.grid.minor = element_blank(),
-          plot.title = element_text(face = "bold"))
+    plot_theme()
 }
 
-# figure 3: line plot of the power of each test against the number of trials,
-# with the typical design of each task marked
-# input: power_by_trials() output, and the trials typically used in each task
-# (K_aware, K_process), which are marked with a big point
-# output: a ggplot object
+# Figure 3: power of each test against the number of trials.
+      # Big points mark the typical design (few awareness trials, many processing trials),
+      # to show the power gap that typical studies build in.
+      # Log x-axis, because the number of trials doubles at each step.
 plot_power_by_trials <- function(power_table, K_aware = 100, K_process = 400) {
-  # the typical design: awareness at K_aware trials, processing at K_process trials
   typical <- rbind(
     power_table[power_table$test == "Awareness test" & power_table$trials == K_aware, ],
     power_table[power_table$test == "Processing test" & power_table$trials == K_process, ]
   )
   typical$label <- paste0(typical$test, "\n", typical$trials, " trials: ",
                           scales::percent(typical$power, accuracy = 1))
-  typical$hjust <- c(-0.12, 1.12)   # awareness label to the right, processing to the left
+  typical$hjust <- c(-0.12, 1.12)   # labels on opposite sides so they do not overlap
   typical$vjust <- c(1.1, 1.6)
   
   ggplot(power_table, aes(trials, power, colour = test, fill = test)) +
@@ -252,25 +213,18 @@ plot_power_by_trials <- function(power_table, K_aware = 100, K_process = 400) {
                            "Same true sensitivity in both tasks (δ = ",
                            unique(power_table$sensitivity), ").\n",
                            "Big points: number of trials in typical design. Bands: 95% CI.")) +
-    theme_minimal(base_size = 13) +
-    theme(legend.position = "top",
-          panel.grid.minor = element_blank(),
-          plot.title = element_text(face = "bold"))
+    plot_theme() +
+    theme(legend.position = "top")
 }
 
-# figure 4: line plot of the power of each test against the number of participants,
-# with the typical design marked
-# input: power_by_participants() output, and the typical number of participants
-# (N_typical), which is marked with a big point
-# output: a ggplot object
+# Figure 4: power of each test against the number of participants (equal trials per task).
+      # Big points mark the typical sample size, to show where typical studies stand.
 plot_power_by_participants <- function(power_table, N_typical = 10) {
-  # the typical design: both tasks at N_typical participants
   typical <- power_table[power_table$participants == N_typical, ]
   typical$label <- paste0(typical$test, "\n", N_typical, " participants: ",
                           scales::percent(typical$power, accuracy = 1))
-  # awareness label to the right and below, processing label to the left and above
   is_aware <- typical$test == "Awareness test"
-  typical$hjust <- ifelse(is_aware, -0.12, 1.12)
+  typical$hjust <- ifelse(is_aware, -0.12, 1.12)   # labels apart so they do not overlap
   typical$vjust <- ifelse(is_aware, 1.1, -0.3)
   
   ggplot(power_table, aes(participants, power, colour = test, fill = test)) +
@@ -285,35 +239,29 @@ plot_power_by_participants <- function(power_table, N_typical = 10) {
               size = 3.8, fontface = "bold", show.legend = FALSE) +
     scale_x_log10(breaks = unique(power_table$participants)) +
     scale_y_continuous(labels = scales::percent, limits = c(0, 1.12),
-                       breaks = seq(0, 1, 0.25)) +   # extra room on top for the label
+                       breaks = seq(0, 1, 0.25)) +   # room above 100% for the label
     scale_colour_manual(values = test_colours) +
     scale_fill_manual(values = test_colours) +
     labs(x = "Participants per task (log scale)",
          y = "Experiments where the test is significant (power)",
          colour = NULL, fill = NULL,
          title = "More participants increase the power of both tests",
-         subtitle = paste0(unique(power_table$trials_aware), " awareness trials and ",
-                           unique(power_table$trials_process), " processing trials per participant. ",
+         subtitle = paste0(unique(power_table$trials), " trials per participant in both tasks. ",
                            "Same true sensitivity (δ = ",
                            unique(power_table$sensitivity), ").\n",
-                           "Big points: typical design. Bands: 95% CI.")) +
-    theme_minimal(base_size = 13) +
-    theme(legend.position = "top",
-          panel.grid.minor = element_blank(),
-          plot.title = element_text(face = "bold"))
+                           "Big points: typical number of participants. Bands: 95% CI.")) +
+    plot_theme() +
+    theme(legend.position = "top")
 }
 
-# figure 5: bar plot of how often both methods detect real unconscious processing,
-# for different study designs
-# input: a named list of claim_rates() outputs, one per design with real
-# unconscious processing (the names become the bar labels), settings (the true
-# sensitivities, shown in the subtitle) and target_power (dashed line)
-# output: a ggplot object
+# Figure 5: how often each method detects real unconscious processing, per design.
+      # Compares designs with the same total data, to show the best way to collect it.
+      # The dashed line marks 80% power, the usual target when planning a study.
 plot_power_designs <- function(rate_list, settings, target_power = 0.8) {
   power <- do.call(rbind, lapply(names(rate_list), function(design) {
     cbind(rate_list[[design]], design = design)
   }))
-  power$design <- factor(power$design, levels = names(rate_list))
+  power$design <- factor(power$design, levels = names(rate_list))   # keep the given order
   
   ggplot(power, aes(design, rate, fill = method)) +
     geom_col(position = position_dodge(width = 0.8), width = 0.75) +
@@ -336,10 +284,8 @@ plot_power_designs <- function(rate_list, settings, target_power = 0.8) {
          subtitle = paste0("Real unconscious processing (awareness δ = ",
                            settings$delta_aware, ", processing δ = ",
                            settings$delta_process, "). Error bars: 95% CI.")) +
-    theme_minimal(base_size = 13) +
+    plot_theme() +
     theme(legend.position = "top",
           panel.grid.major.x = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.text.x = element_text(size = 11.5, colour = "grey15", lineheight = 1.1),
-          plot.title = element_text(face = "bold"))
+          axis.text.x = element_text(size = 11, colour = "grey15", lineheight = 1.1))
 }
