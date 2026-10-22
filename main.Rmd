@@ -1,0 +1,325 @@
+---
+title: "Comparing the Double t-Test and Direct Comparison"
+author: "PIPS Group Project"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+This project uses simulated experiments to compare two ways of evaluating awareness and processing tasks: the **double t-test approach** and the **direct comparison of sensitivities**. We examine how often each method makes a processing-advantage claim when the true sensitivities are equal, how often each detects a real difference, and how study design affects the power of the direct comparison. The project also includes a Shiny app for exploring the simulation interactively.
+
+## 1. Setup
+
+All simulation, analysis, plotting, and app functions are loaded from `src/r/load_all.R`. Run this document from the root of the repository (the folder containing `src/`). The setup script also checks for the packages required by the project.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 9,
+  fig.height = 5,
+  dpi = 120
+)
+
+if (!requireNamespace("knitr", quietly = TRUE)) {
+  stop("Please install knitr before knitting this report: install.packages('knitr')")
+}
+
+source(file.path("src", "r", "load_all.R"))
+```
+
+The main scripts used in this report are:
+
+- `simulate.R`: generates responses for the awareness and processing tasks.
+- `participant_analysis.R`: calculates participant-level accuracy and sensitivity measures and performs t-tests.
+- `run_simulation.R`: runs and analyses one simulated experiment.
+- `analysis.R`: repeats simulations, calculates claim rates and confidence intervals, performs statistical checks, and creates figures.
+- `shiny_app.R`: defines the interactive app, launched with `run_app()`.
+
+## 2. Research question and analysis approaches
+
+The central question is whether the two analysis approaches lead to different conclusions about awareness and processing.
+
+**Double t-test approach.** This approach makes a processing-advantage claim when the processing-task test is statistically significant but the awareness-task test is not. However, a significant result in one task and a non-significant result in another do not, by themselves, demonstrate that the tasks differ.
+
+**Direct comparison.** This approach directly tests the difference between the estimated sensitivities for the two tasks. In the analysis functions used in this report, a claim is counted when the direct-comparison p-value is below the chosen alpha level. The implementation and its assumptions should be kept in mind when interpreting the results.
+
+We use a significance level of \(\alpha = .05\). Each main scenario is repeated 400 times. The claim rate is the proportion of simulated experiments in which a method makes a claim. When the true sensitivities are equal, this rate represents the false-positive rate; when a true difference is simulated, it is used as the operational estimate of power.
+
+## 3. Set the simulation parameters
+
+The baseline settings below use equal true mean sensitivities of 0.25. There are 10 participants in each task, with 100 awareness trials and 400 processing trials per participant. The between-participant variance is 0.0225, corresponding to a standard deviation of 0.15.
+
+```{r parameters}
+exp_par <- list(
+  delta_aware = 0.25,
+  N_aware = 10,
+  K_aware = 100,
+  q2_aware = 0.0225,
+  delta_process = 0.25,
+  N_process = 10,
+  K_process = 400,
+  q2_process = 0.0225
+)
+
+knitr::kable(
+  data.frame(
+    Parameter = names(exp_par),
+    Value = unlist(exp_par, use.names = FALSE)
+  ),
+  caption = "Baseline simulation parameters"
+)
+```
+
+The random seed is set for reproducibility. If the code, seed, or parameter settings change, the results may differ slightly.
+
+## 4. Run one simulated experiment
+
+First, we run one experiment and inspect the p-values from the awareness test, processing test, and direct comparison. This illustrates the analysis workflow. A single experiment cannot estimate a false-positive rate or power reliably, so the following sections repeat the simulation many times.
+
+```{r one-experiment}
+set.seed(2026)
+experiment <- add_results(sim_exp(exp_par))
+
+p_values_one_experiment <- data.frame(
+  Test = c(
+    "Awareness task",
+    "Processing task",
+    "Direct comparison of sensitivities"
+  ),
+  P_value = c(
+    experiment$results_aware$accuracy$ttest$p.value,
+    experiment$results_process$processingMeasure$mean_diff$ttest$p.value,
+    experiment$results_comparison$sensitivity$ttest$p.value
+  )
+)
+
+knitr::kable(
+  p_values_one_experiment,
+  digits = 4,
+  caption = "P-values from one simulated experiment"
+)
+```
+
+## 5. Scenario 1: Equal sensitivity
+
+In Scenario 1, both tasks have the same true mean sensitivity (0.25). Therefore, a claim that the tasks differ is a false-positive claim under this data-generating scenario. This scenario is particularly important for evaluating whether the methods control false positives.
+
+```{r scenario-1}
+results_equal <- run_scenario(exp_par, n_reps = 400, seed = 2027)
+rates_equal <- claim_rates(results_equal)
+
+knitr::kable(
+  rates_equal,
+  digits = 3,
+  caption = "Claim rates when awareness and processing sensitivity are equal"
+)
+```
+
+The analysis notes for this project report a double-t-test claim rate of approximately 31.5%, compared with approximately 5.0% for the direct comparison. The table above is generated from the current code and should be treated as the primary output if it differs from previously recorded values.
+
+### How often is each individual test significant?
+
+The processing task has more trials per participant than the awareness task in this baseline design. We can inspect how often each individual test is significant to help understand the pattern of results.
+
+```{r individual-significance}
+individual_significance <- data.frame(
+  Test = c("Awareness test", "Processing test", "Direct comparison"),
+  Proportion_significant = c(
+    mean(results_equal$p_awareness < 0.05, na.rm = TRUE),
+    mean(results_equal$p_processing < 0.05, na.rm = TRUE),
+    mean(results_equal$p_comparison < 0.05, na.rm = TRUE)
+  )
+)
+
+knitr::kable(
+  individual_significance,
+  digits = 3,
+  caption = "Proportion of simulated experiments with a significant result"
+)
+```
+
+## 6. Scenario 2: Awareness sensitivity is zero
+
+For this scenario, awareness sensitivity is set to zero while processing sensitivity remains 0.25. This introduces a true difference between the tasks. The proportion of claims is used as an estimate of power under each method's operational rule.
+
+```{r scenario-2}
+exp_par_power <- exp_par
+exp_par_power$delta_aware <- 0
+
+results_power <- run_scenario(exp_par_power, n_reps = 400, seed = 2027)
+rates_power <- claim_rates(results_power)
+
+knitr::kable(
+  rates_power,
+  digits = 3,
+  caption = "Claim rates when awareness sensitivity is zero and processing sensitivity is 0.25"
+)
+```
+
+The analysis notes report approximately 90.8% claims for the double-t-test rule and 49.5% for the direct comparison in this scenario. The higher double-t-test claim rate should not be interpreted in isolation: Scenario 1 shows that this rule also makes substantially more false-positive claims when the true sensitivities are equal.
+
+## 7. Scenario 3: Compare study designs
+
+We next compare two designs under the same true sensitivity settings as Scenario 2 (awareness sensitivity 0; processing sensitivity 0.25).
+
+- **Scenario 3a — more awareness trials:** 10 participants per task, 400 awareness trials per participant, and 400 processing trials per participant.
+- **Scenario 3b — more participants:** 40 participants per task, with 100 trials per participant in each task.
+
+Both designs contain 4,000 trials per task. The difference is whether those trials are distributed across more trials per participant or across more participants.
+
+```{r scenario-3}
+# Scenario 3a: increase awareness trials per participant.
+exp_par_trials <- exp_par_power
+exp_par_trials$K_aware <- 400
+
+results_trials <- run_scenario(exp_par_trials, n_reps = 400, seed = 2027)
+rates_trials <- claim_rates(results_trials)
+
+# Scenario 3b: increase participants while reducing trials per participant.
+exp_par_people <- exp_par_power
+exp_par_people$N_aware <- 40
+exp_par_people$N_process <- 40
+exp_par_people$K_aware <- 100
+exp_par_people$K_process <- 100
+
+results_people <- run_scenario(exp_par_people, n_reps = 400, seed = 2027)
+rates_people <- claim_rates(results_people)
+
+knitr::kable(rates_trials, digits = 3,
+             caption = "Scenario 3a: More awareness trials")
+knitr::kable(rates_people, digits = 3,
+             caption = "Scenario 3b: More participants")
+```
+
+The analysis notes report direct-comparison power of approximately 71.3% for Scenario 3a and 96.0% for Scenario 3b. Under this simulation model, distributing the same total number of trials across more participants gives greater power than collecting more trials from fewer participants.
+
+## 8. Visualise the results across scenarios
+
+The figure compares claim rates across the equal-sensitivity scenario and the scenarios with a true sensitivity difference. Error bars represent 95% confidence intervals. The dashed reference lines mark a 5% false-positive rate and 80% power. Interpret the first scenario as a false-positive check and the remaining scenarios as power comparisons.
+
+```{r scenario-plot, fig.height=6}
+all_rates <- combine_scenarios(
+  list(
+    "1: Equal sensitivity" = rates_equal,
+    "2: Original design" = rates_power,
+    "3a: More trials" = rates_trials,
+    "3b: More participants" = rates_people
+  ),
+  measures = c("False positives", "Power", "Power", "Power")
+)
+
+plot_scenarios(all_rates)
+```
+
+## 9. Statistical checks
+
+### Type I error of the direct comparison
+
+The exact binomial test checks whether the direct comparison's false-positive rate under equal sensitivity differs from the nominal 5% level.
+
+```{r type-one-error}
+test_type1_error(results_equal)
+```
+
+The analysis notes report a direct-comparison false-positive rate of 5.0%, with a 95% confidence interval of [3.1%, 7.6%], and an exact binomial-test p-value of 1.00. Use the printed output above for the current run.
+
+### Comparing false-positive claims between methods
+
+McNemar's test compares the two methods' claim decisions on the same simulated experiments.
+
+```{r compare-methods}
+compare_methods(results_equal)
+```
+
+The analysis notes report that the double-t-test rule made false-positive claims in 31.5% of experiments, significantly more often than the direct comparison (McNemar's \(\chi^2(1) = 83.52\), \(p < .001\)). This result illustrates why a significant test in one task and a non-significant test in another should not be treated as a direct test of the difference between tasks.
+
+### Comparing the two study designs
+
+We compare the direct-comparison claim rates for Scenario 3b (more participants) and Scenario 3a (more trials) using a two-proportion test.
+
+```{r compare-designs}
+design_comparison <- prop.test(
+  x = c(
+    sum(results_people$claim_direct_comparison),
+    sum(results_trials$claim_direct_comparison)
+  ),
+  n = c(nrow(results_people), nrow(results_trials))
+)
+
+design_comparison
+```
+
+The analysis notes report power of 96.0% for more participants versus 71.3% for more trials, a difference of 24.8 percentage points (95% CI [19.7, 29.8]), with \(\chi^2(1) = 87.67\), \(p < .001\). Check the output above if the simulation code, seed, or settings have changed.
+
+## 10. P-value scatter plot
+
+The following figure plots the awareness-test p-value against the processing-test p-value for each simulated experiment in Scenario 1. The shaded region marks the pattern where the processing test is significant while the awareness test is not—the pattern used by the double-t-test rule to make a processing-advantage claim.
+
+```{r p-value-scatter, fig.height=6}
+plot_p_value_scatter(results_equal)
+```
+
+Because the true sensitivities are equal in this scenario, the shaded pattern does not establish a true difference between tasks. The figure illustrates how different precision across the tasks can produce different p-values even when the simulated population sensitivities are the same.
+
+## 11. Explore the simulation in the Shiny app
+
+The repository includes a Shiny app that allows users to change the simulation settings, repeat experiments, and visualise how the methods' outcomes change. It complements the fixed scenarios above by making it possible to explore other combinations of sensitivity, participant numbers, trial counts, and repetitions.
+
+The app should be launched manually rather than during knitting. Open the RStudio project from the repository root and run the following code in the Console:
+
+```{r run-app, eval=FALSE}
+source("src/r/load_all.R")
+run_app()
+```
+
+Use the app to explore the following questions:
+
+- How do the methods behave when the true sensitivities are equal?
+- How do their conclusions change when awareness and processing sensitivities differ?
+- What happens when the number of participants or trials per participant changes?
+- How do the results vary across repeated simulated experiments?
+
+## 12. Saving and reusing simulation output
+
+The project provides helper functions in `io.R` to save and load experiment data and batches. For example, after running a batch with `run_batch()`, the result can be saved as an RDS file and a CSV containing the successful experiment-level outcomes.
+
+```{r save-example, eval=FALSE}
+settings <- batch_settings(
+  K_aware = 100,
+  K_process = 400,
+  delta_aware = 0.25,
+  delta_process = 0.25,
+  N = 10,
+  B = 100,
+  seed = 2026
+)
+
+batch_result <- run_batch(settings)
+save_batch(batch_result, name = "example_batch")
+
+# Later, reload the complete batch result:
+reloaded_batch <- load_batch("example_batch")
+```
+
+The default save location is the `data/` directory. Raw data for a single simulated experiment can also be saved with `save_experiment()` and loaded later with `load_experiment()`.
+
+## 13. Discussion and limitations
+
+Overall, the simulations illustrate an important distinction between comparing two significance decisions and directly testing a difference between two estimates. When the true sensitivities are equal, the double-t-test rule makes substantially more false-positive claims than the direct comparison. In the study-design comparison, recruiting more participants gives greater power than increasing trials per participant when the total number of trials per task is held constant.
+
+These findings should be interpreted in light of the simulation assumptions:
+
+- Results depend on the data-generating mechanisms and analysis functions implemented in the supplied scripts.
+- Each scenario uses 400 repetitions, so claim-rate estimates have Monte Carlo uncertainty.
+- A non-significant awareness test does not prove that awareness is absent.
+- The operational claim rules differ between the double t-test and direct comparison; conclusions should follow the definitions implemented in the code.
+- The app may use settings different from the fixed scenarios in this report. Compare the settings before treating app results as directly equivalent to the report results.
+
+## References
+
+Meyen et al. (2022) is cited in the project's analysis notes as the methodological reference. Before submission, add the complete bibliographic reference (full author list, article title, journal, and DOI) after checking the original publication.
