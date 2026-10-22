@@ -40,9 +40,9 @@ app_help = list(
     body = tagList(
       p(
         strong("True mean sensitivity δ"),
-        " describes how strongly people, on average, respond to information
-      from the primes. You choose this value to generate the simulated
-      data; it is not calculated from their responses."
+        " describes how strongly people in the population, on average, respond 
+        to information from the primes. This value cannot be known for real 
+        experiments."
       ),
       tags$ul(
         tags$li(
@@ -54,8 +54,7 @@ app_help = list(
           strong("Processing sensitivity: "),
           "How clearly do reaction times reveal whether prime and target
         match? Higher values mean congruent trials are more consistently
-        faster than incongruent trials, making the conditions easier
-        to distinguish from reaction times."
+        faster than incongruent trials."
         )
       ),
       p(
@@ -92,7 +91,7 @@ app_help = list(
     title = "How is the direct comparison calculated?",
     body = tagList(
       p("Awareness d′ is estimated from identification responses. For processing, each participant's median RT separates faster and slower responses. Processing d' is determined by how well faster or slower responses distinguish congruent from incongruent trials."),
-      p(sprintf("A one-sided paired t-test evaluates whether processing d′ minus awareness d′ is greater than zero. The processing advantage category requires p < %g.", ALPHA)),
+      p(sprintf("A one-sided paired t-test evaluates whether processing-d′-minus-awareness-d′ is greater than zero. The processing advantage category requires p < %g.", ALPHA)),
       p("The other category means there is insufficient evidence for a processing advantage. It does not establish equal sensitivity or an awareness advantage.")
     )
   )
@@ -222,7 +221,7 @@ ui = fluidPage(
               h3(class = "method-title", "Direct comparison of d′"),
               info_button("info_comparison", "the direct sensitivity comparison")),
           uiOutput("comparison_metric"),
-          h4("Evidence of processing advantage"),
+          h4("Significant results"),
           plotOutput("comparison_outcomes", height = "300px"),
           p(strong("This analysis tests the sensitivity difference itself."))
         ))
@@ -399,14 +398,14 @@ server = function(input, output, session) {
     dat = get_data()
     div(class = "warning primary-result",
         div(class = "big", sprintf("%.0f%%", 100 * mean(dat$double_processing_advantage))),
-        strong("Show the double-test processing advantage pattern."))
+        strong("of experiments indicate a processing advantage."))
   })
   
   output$comparison_metric = renderUI({
     dat = get_data()
     div(class = "comparison-result primary-result",
         div(class = "big", sprintf("%.0f%%", 100 * mean(dat$comparison_processing_advantage))),
-        strong("Support a processing advantage in the sensitivity comparison."))
+        strong("of experiments indicate a processing advantage."))
   })
   
   output$comparison_outcomes = renderPlot({
