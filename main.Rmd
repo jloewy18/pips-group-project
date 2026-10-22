@@ -57,8 +57,6 @@ settings <- list(
   q2 = Q2
 )
 
-# Change these to 20 for a faster end-to-end test; restore them for the report.
-# run_batch() supports 20-1000 experiments per batch.
 n_reps <- 400L
 n_reps_power <- 200L
 
