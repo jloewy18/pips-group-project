@@ -1,4 +1,16 @@
-.Rproj.user
+# Local RStudio settings and R session files
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
+
+# Generated simulation outputs
+/data/
+
+# Generated HTML report and rendering files
+/main.html
+/main_cache/
+/main_files/
+
+# macOS system files
+.DS_Store
