@@ -1,11 +1,45 @@
 # ------------------- FUNCTIONS -------------------------------- # 
 
+
+# runs one simulated experiment and returns a table with:
+    # 1. the three p values 
+    # 2. if the double t-test would conclude “unconscious processing” (processing significant and awareness not);
+    # 3. if the direct comparison finds a difference.
+
+run_one_experiment <- function(exp_par, alpha = 0.05) {
+  experiment <- add_results(sim_exp(exp_par))
+  
+  p_awareness  <- experiment$results_aware$accuracy$ttest$p.value
+  p_processing <- experiment$results_process$processingMeasure$mean_diff$ttest$p.value
+  p_comparison <- experiment$results_comparison$sensitivity$ttest$p.value
+  
+  data.frame(
+    p_awareness  = p_awareness,
+    p_processing = p_processing,
+    p_comparison = p_comparison,
+    # Double t-test: processing significant AND awareness not significant
+    claim_double_ttest = p_processing < alpha & p_awareness >= alpha,
+    # Direct comparison: the two sensitivities differ significantly
+    claim_direct_comparison = p_comparison < alpha
+  )
+}
+
+
+# repeats run_one_experiment many times
+run_scenario <- function(exp_par, n_reps = 1000, seed = 2027) {
+  if (n_reps < 10) stop("n_reps should be at least 10 to estimate rates.")
+  set.seed(seed)
+  do.call(rbind, replicate(n_reps, run_one_experiment(exp_par),
+                           simplify = FALSE))
+}
+
+
 # calculates how often each method claims unconscious processing.
     #  returns the false positive rate when both tasks are equally sensitive,
     # and the power when processing is truly more sensitive.
 claim_rates <- function(study_results) {
-  methods <- c(double_processing_advantage = "Double t-test",
-               comparison_processing_advantage = "Direct comparison")
+  methods <- c(claim_double_ttest = "Double t-test",
+               claim_direct_comparison = "Direct comparison")
   
   rows <- lapply(names(methods), function(column) {
     n_claims <- sum(study_results[[column]])          # how many TRUEs
@@ -60,7 +94,7 @@ plot_scenarios <- function(combined, alpha = 0.05, target_power = 0.8) {
 
 # test whether the direct comparison keeps false positives at alpha
 test_type1_error <- function(study_results, alpha = 0.05) {
-  binom.test(sum(study_results$comparison_processing_advantage),
+  binom.test(sum(study_results$claim_direct_comparison),
              nrow(study_results), p = alpha)
 }
 
@@ -69,8 +103,8 @@ test_type1_error <- function(study_results, alpha = 0.05) {
 # Compare the claims of the two methods with McNemar's test (both methods are applied to the same experiments).
 compare_methods <- function(study_results) {
   claims <- table(
-    double_ttest = factor(study_results$double_processing_advantage, levels = c(FALSE, TRUE)),
-    direct_comparison = factor(study_results$comparison_processing_advantage, levels = c(FALSE, TRUE))
+    double_ttest = factor(study_results$claim_double_ttest, levels = c(FALSE, TRUE)),
+    direct_comparison = factor(study_results$claim_direct_comparison, levels = c(FALSE, TRUE))
   )
   mcnemar.test(claims)
 }
@@ -80,7 +114,7 @@ compare_methods <- function(study_results) {
     # the shaded area marks the misleading pattern: processing significant, awareness not.
       # input: the results of run_scenario() and alpha (significance level).
 plot_p_value_scatter <- function(study_results, alpha = 0.05) {
-  share <- mean(study_results$double_processing_advantage)
+  share <- mean(study_results$claim_double_ttest)
   min_p <- min(c(study_results$p_awareness, study_results$p_processing))
   
   ggplot(study_results, aes(p_awareness, p_processing)) +
