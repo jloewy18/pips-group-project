@@ -50,7 +50,7 @@ compare_methods(results)
 
 
 
-# ---- PART B.WHY: THE AWARENESS TEST HAS LESS POWER ----
+# ---- PART B. WHY: THE AWARENESS TEST HAS LESS POWER ----
 
 # Figure 2: equal sensitivity, yet the processing test gives much smaller p-values
 plot_p_value_scatter(results)
