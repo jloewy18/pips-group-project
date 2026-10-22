@@ -221,7 +221,7 @@ ui = fluidPage(
               h3(class = "method-title", "Direct comparison of d′"),
               info_button("info_comparison", "the direct sensitivity comparison")),
           uiOutput("comparison_metric"),
-          h4("Evidence of processing advantage"),
+          h4("Significant results"),
           plotOutput("comparison_outcomes", height = "300px"),
           p(strong("This analysis tests the sensitivity difference itself."))
         ))
@@ -398,14 +398,14 @@ server = function(input, output, session) {
     dat = get_data()
     div(class = "warning primary-result",
         div(class = "big", sprintf("%.0f%%", 100 * mean(dat$double_processing_advantage))),
-        strong("Show the double-test processing advantage pattern."))
+        strong("of experiments indicate a processing advantage."))
   })
   
   output$comparison_metric = renderUI({
     dat = get_data()
     div(class = "comparison-result primary-result",
         div(class = "big", sprintf("%.0f%%", 100 * mean(dat$comparison_processing_advantage))),
-        strong("Support a processing advantage in the sensitivity comparison."))
+        strong("of experiments indicate a processing advantage."))
   })
   
   output$comparison_outcomes = renderPlot({
