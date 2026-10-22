@@ -1,5 +1,5 @@
-# Loads all project code into the global environment
-# Run from the project root (main.Rmd does this automatically)
+# Loads all project code into the global environment.
+
 local({
   r_dir = file.path("src", "r")
   if (!dir.exists(r_dir)) stop("Run this from the project root (the folder containing 'src').")

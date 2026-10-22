@@ -1,55 +1,105 @@
-# Save/load helpers
+# Optional input/output helpers for batch results and raw experiment data.
+# RDS preserves R objects; CSV exports tables for use outside R.
 
-# Saves a batch result (output of run_batch()) to data/ as .rds
-# and .csv (one row per successfully analysed experiment)
-save_batch = function(res, name, dir = "data") {
-  dir.create(dir, showWarnings = FALSE, recursive = TRUE)
-  saveRDS(res, file.path(dir, paste0(name, ".rds")))
-  utils::write.csv(res$data, file.path(dir, paste0(name, ".csv")), row.names = FALSE)
-  invisible(file.path(dir, name))
-}
-
-# Loads the complete batch result from its RDS file
-load_batch = function(name, dir = "data") {
-  path = file.path(dir, paste0(name, ".rds"))
-  if (!file.exists(path)) {
-    stop(sprintf("No saved batch found at '%s'.", path))
+# Validate a filename stem shared by the save/load functions.
+validate_file_name = function(name) {
+  if (!is.character(name) || length(name) != 1L || is.na(name) ||
+      !nzchar(trimws(name)) || grepl("[<>:\"/\\\\|?*[:cntrl:]]", name) ||
+      grepl("[. ]$", name)) {
+    stop("Use a nonempty filename without separators or invalid filename characters.")
   }
-  readRDS(path)
+  invisible(NULL)
 }
 
-# Saves raw datasets for one experiment, for example output of sim_exp()
-save_experiment = function(experiment, name, dir = "data/raw",
-                           overwrite = FALSE) {
+# Check overwrite protection and prepare the output directory.
+prepare_output = function(paths, dir, overwrite) {
+  if (!is.logical(overwrite) || length(overwrite) != 1L || is.na(overwrite)) {
+    stop("overwrite must be TRUE or FALSE.")
+  }
+  if (!overwrite && any(file.exists(paths))) {
+    stop("Files already exist. Choose another name or use overwrite = TRUE.")
+  }
+  if (any(dir.exists(paths))) {
+    stop("An output file path points to an existing directory.")
+  }
+  dir.create(dir, showWarnings = FALSE, recursive = TRUE)
+  if (!dir.exists(dir)) {
+    stop("Could not create the output directory.")
+  }
+  invisible(NULL)
+}
+
+# Require the table used to export batch outcomes.
+validate_batch_data = function(res) {
+  if (!is.list(res) || !is.data.frame(res$data)) {
+    stop("The batch result must be a list containing a data-frame 'data' component.")
+  }
+  invisible(NULL)
+}
+
+# Require both raw task datasets.
+validate_experiment_data = function(experiment) {
   required = c("dat_aware", "dat_process")
   if (!is.list(experiment) || !all(required %in% names(experiment))) {
-    stop("experiment must contain dat_aware and dat_process.")
+    stop("The experiment must contain dat_aware and dat_process.")
   }
   if (!all(vapply(experiment[required], is.data.frame, logical(1)))) {
     stop("dat_aware and dat_process must be data frames.")
   }
-  if (!is.character(name) || length(name) != 1L || is.na(name) ||
-      !nzchar(name) || grepl("[/\\\\]", name) || name %in% c(".", "..")) {
-    stop("Use a nonempty file name without folder separators.")
-  }
-  if (!is.logical(overwrite) || length(overwrite) != 1L || is.na(overwrite)) {
-    stop("overwrite must be TRUE or FALSE.")
+  invisible(NULL)
+}
+
+# Save a complete run_batch() result as RDS and its outcome table as CSV.
+# Returns the output paths invisibly; existing files are protected by default.
+save_batch = function(res, name, dir = "data", overwrite = FALSE) {
+  validate_file_name(name)
+  validate_batch_data(res)
+  
+  paths = c(
+    rds = file.path(dir, paste0(name, ".rds")),
+    csv = file.path(dir, paste0(name, ".csv"))
+  )
+  prepare_output(paths, dir, overwrite)
+  
+  saveRDS(res, paths[["rds"]])
+  utils::write.csv(res$data, paths[["csv"]], row.names = FALSE)
+  invisible(paths)
+}
+
+# Load a complete saved batch from RDS; use the same name without extension.
+load_batch = function(name, dir = "data") {
+  validate_file_name(name)
+  path = file.path(dir, paste0(name, ".rds"))
+  if (!file.exists(path)) {
+    stop(sprintf("No saved batch found at '%s'.", path))
   }
   
-  raw = experiment[required]
-  if (!is.null(experiment$parameters)) raw$parameters = experiment$parameters
-  if (!is.null(experiment$seed)) raw$seed = experiment$seed
+  res = readRDS(path)
+  validate_batch_data(res)
+  return(res)
+}
+
+# Save raw datasets.
+# Retain parameters and seed metadata only if present in the input object.
+save_experiment = function(experiment, name, dir = "data/raw",
+                           overwrite = FALSE) {
+  validate_file_name(name)
+  validate_experiment_data(experiment)
+  
+  raw = experiment[c("dat_aware", "dat_process")]
+  if (!is.null(experiment$parameters)) {
+    raw$parameters = experiment$parameters
+  }
+  if (!is.null(experiment$seed)) {
+    raw$seed = experiment$seed
+  }
   
   paths = c(
     rds = file.path(dir, paste0(name, ".rds")),
     awareness = file.path(dir, paste0(name, "_awareness.csv")),
     processing = file.path(dir, paste0(name, "_processing.csv"))
   )
-  if (!overwrite && any(file.exists(paths))) {
-    stop("Files already exist. Choose another name or use overwrite = TRUE.")
-  }
-  dir.create(dir, showWarnings = FALSE, recursive = TRUE)
-  if (!dir.exists(dir)) stop("Could not create the output directory.")
+  prepare_output(paths, dir, overwrite)
   
   saveRDS(raw, paths[["rds"]])
   utils::write.csv(raw$dat_aware, paths[["awareness"]], row.names = FALSE)
@@ -57,20 +107,16 @@ save_experiment = function(experiment, name, dir = "data/raw",
   invisible(paths)
 }
 
-# Loads raw datasets and any saved metadata from their RDS file
-# For individual CSV files, use read.csv()
+# Load raw task datasets and any saved metadata from RDS.
+# For the separate CSV files, use utils::read.csv().
 load_experiment = function(name, dir = "data/raw") {
+  validate_file_name(name)
   path = file.path(dir, paste0(name, ".rds"))
   if (!file.exists(path)) {
     stop(sprintf("No saved experiment found at '%s'.", path))
   }
+  
   experiment = readRDS(path)
-  required = c("dat_aware", "dat_process")
-  if (!is.list(experiment) || !all(required %in% names(experiment))) {
-    stop("The file does not contain the expected experiment datasets.")
-  }
-  if (!all(vapply(experiment[required], is.data.frame, logical(1)))) {
-    stop("The saved task datasets must be data frames.")
-  }
-  experiment
+  validate_experiment_data(experiment)
+  return(experiment)
 }
