@@ -19,10 +19,10 @@
 # ---- 1. Rates and tests ------------------------------------------------------
 
 # Share of experiments in which each method claims unconscious processing.
-      # If the tasks are equally sensitive, every claim is wrong (false positive rate);
-      # if processing is truly more sensitive, every claim is right (detection rate).
-      # The 95% CI shows how precise the estimate is with this number of simulations.
-      # Input: the data of a run_batch() result (one row per experiment).
+# If the tasks are equally sensitive, every claim is wrong (false positive rate);
+# if processing is truly more sensitive, every claim is right (detection rate).
+# The 95% CI shows how precise the estimate is with this number of simulations.
+# Input: the data of a run_batch() result (one row per experiment).
 claim_rates <- function(study_results) {
   methods <- c(double_processing_advantage = "Double t-test",
                comparison_processing_advantage = "Direct comparison")
@@ -40,9 +40,9 @@ claim_rates <- function(study_results) {
 }
 
 # Power of each separate test (share of experiments where it is significant).
-      # Input: the data of a run_batch() result.
-      # Explains the double t-test: if awareness has less power than processing,
-      # "processing yes, awareness no" happens even when both are equally sensitive.
+# Input: the data of a run_batch() result.
+# Explains the double t-test: if awareness has less power than processing,
+# "processing yes, awareness no" happens even when both are equally sensitive.
 test_power <- function(study_results) {
   tests <- c(aware_sig = "Awareness test", process_sig = "Processing test")
   rows <- lapply(names(tests), function(column) {
@@ -55,9 +55,9 @@ test_power <- function(study_results) {
 }
 
 # Power of both tests across numbers of trials.
-      # Both tasks get the same trials and sensitivity, so the only thing that varies
-      # is the amount of data: this shows how much power depends on trial count.
-      # (K_values must be 50-500: run_batch() only accepts that many trials per task.)
+# Both tasks get the same trials and sensitivity, so the only thing that varies
+# is the amount of data: this shows how much power depends on trial count.
+# (K_values must be 50-500: run_batch() only accepts that many trials per task.)
 power_by_trials <- function(settings, K_values = c(50, 100, 200, 400), n_reps = 200) {
   rows <- lapply(K_values, function(K) {
     par <- modifyList(settings, list(K_aware = K, K_process = K, B = n_reps))
@@ -70,8 +70,8 @@ power_by_trials <- function(settings, K_values = c(50, 100, 200, 400), n_reps = 
 }
 
 # Power of both tests across numbers of participants.
-      # Both tasks get the same number of trials, so the only thing that varies is the
-      # number of participants: this shows the effect of sample size on its own.
+# Both tasks get the same number of trials, so the only thing that varies is the
+# number of participants: this shows the effect of sample size on its own.
 power_by_participants <- function(settings, N_values = c(5, 10, 20, 40), trials = 100,
                                   n_reps = 200) {
   rows <- lapply(N_values, function(n) {
@@ -85,15 +85,15 @@ power_by_participants <- function(settings, N_values = c(5, 10, 20, 40), trials 
 }
 
 # Test 1: is the direct comparison valid?
-      # A valid method should not make more false claims than alpha (5%).
-      # One-sided, because only too many false claims would be a problem.
+# A valid method should not make more false claims than alpha (5%).
+# One-sided, because only too many false claims would be a problem.
 test_type1_error <- function(study_results, alpha = ALPHA) {
   binom.test(sum(study_results$comparison_processing_advantage),
              nrow(study_results), p = alpha, alternative = "greater")
 }
 
 # Test 2: does the double t-test make more false claims than the direct comparison?
-      # McNemar's test, because both methods judge the same experiments (paired data).
+# McNemar's test, because both methods judge the same experiments (paired data).
 compare_methods <- function(study_results) {
   claims <- table(
     double_ttest = factor(study_results$double_processing_advantage, levels = c(FALSE, TRUE)),
@@ -103,7 +103,7 @@ compare_methods <- function(study_results) {
 }
 
 # Test 3: does one study design detect real effects more often than another?
-      # Test of two proportions, because the designs are separate sets of experiments.
+# Test of two proportions, because the designs are separate sets of experiments.
 compare_designs <- function(results_a, results_b) {
   prop.test(x = c(sum(results_a$comparison_processing_advantage),
                   sum(results_b$comparison_processing_advantage)),
@@ -120,7 +120,7 @@ test_colours <- c("Awareness test" = COLS[["Awareness"]],
                   "Processing test" = COLS[["Processing"]])
 
 # Figure 1: how often each method wrongly claims unconscious processing.
-      # The dashed line marks alpha, the error rate a valid method should stay under.
+# The dashed line marks alpha, the error rate a valid method should stay under.
 plot_false_positives <- function(rates, settings, alpha = ALPHA) {
   ggplot(rates, aes(method, rate, fill = method)) +
     geom_col(width = 0.6) +
@@ -148,8 +148,8 @@ plot_false_positives <- function(rates, settings, alpha = ALPHA) {
 }
 
 # Figure 2: why the double t-test fails (cf. Meyen et al., 2022, Figure S3).
-      # Each point is one experiment. Points below the diagonal: processing gave the
-      # smaller p value despite equal sensitivity. Shaded area: the misleading pattern.
+# Each point is one experiment. Points below the diagonal: processing gave the
+# smaller p value despite equal sensitivity. Shaded area: the misleading pattern.
 plot_p_value_scatter <- function(study_results, alpha = ALPHA) {
   share <- mean(study_results$double_processing_advantage)
   min_p <- min(c(study_results$p_awareness, study_results$p_processing))
@@ -178,9 +178,9 @@ plot_p_value_scatter <- function(study_results, alpha = ALPHA) {
 }
 
 # Figure 3: power of each test against the number of trials.
-      # Big points mark the typical design (few awareness trials, many processing trials),
-      # to show the power gap that typical studies build in.
-      # Log x-axis, because the number of trials doubles at each step.
+# Big points mark the typical design (few awareness trials, many processing trials),
+# to show the power gap that typical studies build in.
+# Log x-axis, because the number of trials doubles at each step.
 plot_power_by_trials <- function(power_table, K_aware = 100, K_process = 400) {
   typical <- rbind(
     power_table[power_table$test == "Awareness test" & power_table$trials == K_aware, ],
@@ -218,7 +218,7 @@ plot_power_by_trials <- function(power_table, K_aware = 100, K_process = 400) {
 }
 
 # Figure 4: power of each test against the number of participants (equal trials per task).
-      # Big points mark the typical sample size, to show where typical studies stand.
+# Big points mark the typical sample size, to show where typical studies stand.
 plot_power_by_participants <- function(power_table, N_typical = 10) {
   typical <- power_table[power_table$participants == N_typical, ]
   typical$label <- paste0(typical$test, "\n", N_typical, " participants: ",
@@ -255,8 +255,8 @@ plot_power_by_participants <- function(power_table, N_typical = 10) {
 }
 
 # Figure 5: how often each method detects real unconscious processing, per design.
-      # Compares designs with the same total data, to show the best way to collect it.
-      # The dashed line marks 80% power, the usual target when planning a study.
+# Compares designs with the same total data, to show the best way to collect it.
+# The dashed line marks 80% power, the usual target when planning a study.
 plot_power_designs <- function(rate_list, settings, target_power = 0.8) {
   power <- do.call(rbind, lapply(names(rate_list), function(design) {
     cbind(rate_list[[design]], design = design)
@@ -288,4 +288,33 @@ plot_power_designs <- function(rate_list, settings, target_power = 0.8) {
     theme(legend.position = "top",
           panel.grid.major.x = element_blank(),
           axis.text.x = element_text(size = 11, colour = "grey15", lineheight = 1.1))
+}
+
+
+# Stop if any experiments in a batch failed.
+require_complete_batch <- function(batch, label) {
+  if (length(batch$errors) || nrow(batch$data) != batch$attempted) {
+    stop(
+      label, ": ",
+      nrow(batch$data), " of ", batch$attempted,
+      " experiments analysed. Check the batch errors."
+    )
+  }
+  invisible(NULL)
+}
+
+# Format claim rates and confidence intervals for the report tables.
+display_claim_rates <- function(rates, n_experiments) {
+  data.frame(
+    Method = rates$method,
+    `Experiments claiming processing advantage` = sprintf(
+      "%d / %d",
+      as.integer(round(rates$rate * n_experiments)),
+      n_experiments
+    ),
+    `Claim rate` = sprintf("%.1f%%", 100 * rates$rate),
+    `95% CI (lower bound)` = sprintf("%.1f%%", 100 * rates$ci_low),
+    `95% CI (upper bound)` = sprintf("%.1f%%", 100 * rates$ci_high),
+    check.names = FALSE
+  )
 }
